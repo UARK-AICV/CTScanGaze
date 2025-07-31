@@ -130,6 +130,8 @@ We use comprehensive 3D-adapted metrics for scanpath evaluation:
 
 ## ⚠️ TODO
 
+The current code base is working as long as the path and extracted features are prepared. But a lot of refactoring work is needed. 
+
 - [ ] Extracted feature of CTs
 - [ ] Clean and refactor codebase
 - [ ] Synthetic dataset
