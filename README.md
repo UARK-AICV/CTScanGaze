@@ -71,9 +71,10 @@ Each data sample contains the following fields:
     "T": list,             # Fixation durations in seconds
     "K": int,              # Fixation captured time
     "length": int,         # Scanpath length
+    "report": str,         # Report for this CT
 }
 ```
-Note that other fields in the json are dummy so you do not need to care about them. 
+Note that other fields in the JSON are dummy, so you do not need to care about them. For the reports, many reports will look like duplications because multiple CTs are from the same CT reading session for the same patient.
 
 Additionally, we provide zip files containing all CT scans that match the identifiers, along with corresponding radiological reports for each CT scan.
 
