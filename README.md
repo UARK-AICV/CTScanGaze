@@ -9,7 +9,19 @@
 
 </div>
 
-This repository provides the first publicly available dataset of expert radiologist gaze during CT analysis and **CT-Searcher**, a transformer-based model for 3D scanpath prediction on medical CT volumes. Our work addresses the critical gap in understanding how radiologists visually examine 3D medical images during diagnostic procedures.
+This repository provides the first publicly available dataset of expert radiologist gaze during CT analysis **CTScanGaze** and **CT-Searcher**, a transformer-based model for 3D scanpath prediction on medical CT volumes. Our work addresses the critical gap in understanding how radiologists visually examine 3D medical images during diagnostic procedures.
+
+<div align="center">
+  <img src="image.png" alt="CT-ScanGaze Dataset Overview" width="80%">
+  <br>
+  <em><strong>Figure 1:</strong> CTScanGaze</em>
+</div>
+
+<div align="center">
+  <img src="image-1.png" alt="CT-Searcher Model Architecture" width="80%">
+  <br>
+  <em><strong>Figure 2:</strong> CTSearcher</em>
+</div>
 
 **🎉 This work has been accepted as a highlight paper at ICCV 2025! 🎉**
 
@@ -41,13 +53,10 @@ uv pip install -r requirements.txt
 ```
 
 
-## 📊 Dataset
-
-### CT-ScanGaze Dataset
+## 📊 CT-ScanGaze Dataset
 
 **CT-ScanGaze** is the first publicly available eye gaze dataset focused on CT scan analysis. The dataset is available on [Hugging Face](https://huggingface.co/datasets/phamtrongthang/CT-ScanGaze).
 
-### Data Format
 
 Each data sample contains the following fields:
 
@@ -119,6 +128,14 @@ We use comprehensive 3D-adapted metrics for scanpath evaluation:
 - **Normalized Scanpath Saliency (NSS)**: Normalized saliency at fixation locations
 - **Kullback-Leibler Divergence (KLDiv)**: Distribution similarity measure
 
+## ⚠️ TODO
+
+- [ ] Extarcted feature of CT
+- [ ] Clean and refactor codebase
+- [ ] Synthetic dataset
+- [ ] Improve code comments and structure
+
+
 ## 📜 Citation
 
 If you find our work useful, please cite our paper:
@@ -141,11 +158,6 @@ This material is based upon work supported by the National Science Foundation (N
 This project is licensed under the Creative Commons Attribution Non Commercial Share Alike 4.0 International License. See the [LICENSE](LICENSE) file for details.
 
 
-## ⚠️ TODO
-
-- Clean and refactor codebase
-- Add comprehensive documentation
-- Improve code comments and structure
 
 ## � Contact
 
