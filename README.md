@@ -12,13 +12,13 @@
 This repository provides the first publicly available dataset of expert radiologist gaze during CT analysis **CTScanGaze** and **CT-Searcher**, a transformer-based model for 3D scanpath prediction on medical CT volumes. Our work addresses the critical gap in understanding how radiologists visually examine 3D medical images during diagnostic procedures.
 
 <div align="center">
-  <img src="image.png" alt="CT-ScanGaze Dataset Overview" width="80%">
+  <img src="docs/image.png" alt="CT-ScanGaze Dataset Overview" width="80%">
   <br>
   <em><strong>Figure 1:</strong> CTScanGaze</em>
 </div>
 
 <div align="center">
-  <img src="image-1.png" alt="CT-Searcher Model Architecture" width="80%">
+  <img src="docs/image-1.png" alt="CT-Searcher Model Architecture" width="80%">
   <br>
   <em><strong>Figure 2:</strong> CTSearcher</em>
 </div>
