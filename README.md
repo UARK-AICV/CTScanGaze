@@ -130,7 +130,7 @@ We use comprehensive 3D-adapted metrics for scanpath evaluation:
 
 ## ⚠️ TODO
 
-- [ ] Extarcted feature of CT
+- [ ] Extracted feature of CTs
 - [ ] Clean and refactor codebase
 - [ ] Synthetic dataset
 - [ ] Improve code comments and structure
