@@ -144,9 +144,9 @@ The current code base is working as long as the path and extracted features are 
 If you find our work useful, please cite our paper:
 
 ```bibtex
-@article{pham2025ctscanpare,
+@article{pham2025ct,
   title={CT-ScanGaze: A Dataset and Baselines for 3D Volumetric Scanpath Modeling},
-  author={Pham, Trong Thang and Awasthi, Akash and Khan, Saba and others},
+  author={Pham, Trong-Thang and Awasthi, Akash and Khan, Saba and Marti, Esteban Duran and Nguyen, Tien-Phat and Vo, Khoa and Tran, Minh and Nguyen, Ngoc Son and Van, Cuong Tran and Ikebe, Yuki and others},
   journal={arXiv preprint arXiv:2507.12591},
   year={2025}
 }
