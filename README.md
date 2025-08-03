@@ -82,6 +82,7 @@ Additionally, we provide zip files containing all CT scans that match the identi
 ## 🏃‍♂️ Training
 
 ### Quick Start
+There is another step to prepare the extracted CT feature first before running the scripts below. I will update this later (⚠️TODO). But for anyone wants to go ahead, we use SwinUNETR. 
 
 ```bash
 # Train the gaze predictor using the synthetic data
