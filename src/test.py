@@ -5,7 +5,7 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-from dataset.dataset import COCOSearch_evaluation
+from dataset.dataset import CTScanGaze_evaluation
 from models.gazeformer import gazeformer
 from models.models import Transformer
 from models.sampling import Sampling
@@ -14,7 +14,7 @@ from tqdm import tqdm
 from utils.evaluation import comprehensive_evaluation_by_subject
 from utils.logger import Logger
 
-parser = argparse.ArgumentParser(description="Scanpath prediction for images")
+parser = argparse.ArgumentParser(description="3D scanpath prediction for CT volumes using CT-Searcher")
 parser.add_argument(
     "--mode", type=str, default="test", help="Selecting running mode (default: test)"
 )
@@ -22,19 +22,19 @@ parser.add_argument(
     "--img_dir",
     type=str,
     default="/srv/data/COCOSearch18/TP/images",
-    help="Directory to the image data (stimuli)",
+    help="Directory to the CT volume data",
 )
 parser.add_argument(
     "--feat_dir",
     type=str,
     default="/srv/data/COCOSearch18/TP/image_features",
-    help="Directory to the image feature data (stimuli)",
+    help="Directory to the CT volume feature data",
 )
 parser.add_argument(
     "--fix_dir",
     type=str,
     default="/srv/data/COCOSearch18/TP/processed",
-    help="Directory to the raw fixation file",
+    help="Directory to the 3D gaze fixation file",
 )
 parser.add_argument("--width", type=int, default=512, help="Width of input data")
 parser.add_argument("--height", type=int, default=512, help="Height of input data")
@@ -56,8 +56,8 @@ parser.add_argument("--gpu_ids", type=list, default=[0], help="Used gpu ids")
 parser.add_argument(
     "--evaluation_dir",
     type=str,
-    default="../runs/COCO_Search_baseline",
-    help="Resume from a specific directory",
+    default="../runs/CTScanGaze_CTSearcher",
+    help="Directory containing trained model checkpoints for evaluation",
 )
 parser.add_argument(
     "--eval_repeat_num", type=int, default=1, help="Repeat number for evaluation"
@@ -131,7 +131,7 @@ parser.add_argument(
     "--cuda", default=0, type=int, help="CUDA core to load models and data"
 )
 parser.add_argument(
-    "--subject_num", type=int, default=10, help="The number of the subject in OSIE"
+    "--subject_num", type=int, default=10, help="The number of radiologists in CT-ScanGaze"
 )
 parser.add_argument(
     "--subject_feature_dim",
@@ -166,7 +166,7 @@ def main():
     for key, value in vars(args).items():
         logger.info("{key:20}: {value:}".format(key=key, value=value))
 
-    test_dataset = COCOSearch_evaluation(
+    test_dataset = CTScanGaze_evaluation(
         args.img_dir,
         args.feat_dir,
         args.fix_dir,

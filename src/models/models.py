@@ -7,10 +7,11 @@ import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
 
-#ResNet-50 backbone
-class ResNetCOCO(nn.Module):
+# ResNet-50 backbone for feature extraction
+# Uses MaskRCNN ResNet50 pre-trained on COCO dataset as the backbone
+class ResNetBackbone(nn.Module):
     def __init__(self, device = "cuda:0"):
-        super(ResNetCOCO, self).__init__()
+        super(ResNetBackbone, self).__init__()
         self.resnet = maskrcnn_resnet50_fpn(weights=MaskRCNN_ResNet50_FPN_Weights.COCO_V1).backbone.body.to(device)
         self.device = device
         

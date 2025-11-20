@@ -4,7 +4,7 @@ import argparse
 
 
 def parse_opt():
-    parser = argparse.ArgumentParser(description="Scanpath prediction for images")
+    parser = argparse.ArgumentParser(description="3D scanpath prediction for CT volumes using CT-Searcher")
     parser.add_argument(
         "--mode",
         type=str,
@@ -15,19 +15,19 @@ def parse_opt():
         "--img_dir",
         type=str,
         default="/srv/data/COCOSearch18/TP/images",
-        help="Directory to the image data (stimuli)",
+        help="Directory to the CT volume data",
     )
     parser.add_argument(
         "--feat_dir",
         type=str,
         default="/srv/data/COCOSearch18/TP/image_features",
-        help="Directory to the image feature data (stimuli)",
+        help="Directory to the CT volume feature data",
     )
     parser.add_argument(
         "--fix_dir",
         type=str,
         default="/srv/data/COCOSearch18/TP/processed",
-        help="Directory to the raw fixation file",
+        help="Directory to the 3D gaze fixation file",
     )
     parser.add_argument("--width", type=int, default=512, help="Width of input data")
     parser.add_argument("--height", type=int, default=512, help="Height of input data")
@@ -169,7 +169,7 @@ def parse_opt():
         "--cuda", default=0, type=int, help="CUDA core to load models and data"
     )
     parser.add_argument(
-        "--subject_num", type=int, default=10, help="The number of the subject in OSIE"
+        "--subject_num", type=int, default=10, help="The number of radiologists in CT-ScanGaze"
     )
     parser.add_argument(
         "--subject_feature_dim",

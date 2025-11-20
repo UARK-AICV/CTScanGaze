@@ -12,9 +12,9 @@ from torch.utils.data import Dataset
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-class COCOSearch(Dataset):
+class CTScanGaze(Dataset):
     """
-    get OSIE data
+    CT-ScanGaze dataset for 3D volumetric scanpath prediction training
     """
 
     def __init__(
@@ -264,9 +264,9 @@ class COCOSearch(Dataset):
         return data
 
 
-class COCOSearch_rl(Dataset):
+class CTScanGaze_rl(Dataset):
     """
-    get OSIE data for evaluation
+    CT-ScanGaze dataset for reinforcement learning training
     """
 
     def __init__(
@@ -453,9 +453,9 @@ class COCOSearch_rl(Dataset):
         return data
 
 
-class COCOSearch_evaluation(Dataset):
+class CTScanGaze_evaluation(Dataset):
     """
-    get OSIE data for evaluation
+    CT-ScanGaze dataset for evaluation and testing
     """
 
     def __init__(

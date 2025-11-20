@@ -110,7 +110,7 @@ python src/train.py \
 
 ```bash
 python src/test.py \
-    --resume_dir runs/COCO_Search_baseline \
+    --evaluation_dir runs/CTScanGaze_CTSearcher \
     --img_dir /path/to/test/ct/images \
     --feat_dir /path/to/test/features \
     --fix_dir /path/to/test/gaze/data

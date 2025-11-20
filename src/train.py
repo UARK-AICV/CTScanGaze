@@ -6,7 +6,7 @@ import scipy.stats
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from dataset.dataset import COCOSearch, COCOSearch_evaluation, COCOSearch_rl
+from dataset.dataset import CTScanGaze, CTScanGaze_evaluation, CTScanGaze_rl
 from models.gazeformer import gazeformer
 from models.loss import (
     CrossEntropyLoss,
@@ -71,7 +71,7 @@ def main():
     #   INSTANTIATE VOCABULARY, DATALOADER, MODEL, OPTIMIZER
     # --------------------------------------------------------------------------------------------
 
-    train_dataset = COCOSearch(
+    train_dataset = CTScanGaze(
         args.img_dir,
         args.feat_dir,
         args.fix_dir,
@@ -82,7 +82,7 @@ def main():
         type="train",
         max_length=args.max_length,
     )
-    train_dataset_rl = COCOSearch_rl(
+    train_dataset_rl = CTScanGaze_rl(
         args.img_dir,
         args.feat_dir,
         args.fix_dir,
@@ -91,7 +91,7 @@ def main():
         resize=(args.height, args.width, 512),
         type="train",
     )
-    validation_dataset = COCOSearch_evaluation(
+    validation_dataset = CTScanGaze_evaluation(
         args.img_dir,
         args.feat_dir,
         args.fix_dir,
@@ -197,9 +197,9 @@ def main():
     # Infer iteration number through file name (it's hacky but very simple), so don't rename
     # saved checkpoints if you intend to continue training.
 
-    # SEMI NOWWWWWW
+    # Load pre-trained semi-supervised checkpoint
     training_checkpoint = torch.load(
-        "runs/COCO_Search_baseline_semi/checkpoints/checkpoint.pth"
+        "runs/CTScanGaze_CTSearcher_semi/checkpoints/checkpoint.pth"
     )
     for key in training_checkpoint:
         if key == "optimizer":
