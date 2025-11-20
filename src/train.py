@@ -6,23 +6,19 @@ import scipy.stats
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from dataset.dataset import CTScanGaze, CTScanGaze_evaluation, CTScanGaze_rl
-from models.gazeformer import gazeformer
+from dataset.dataset import CTScanGaze, CTScanGaze_evaluation
+from models.ct_searcher import CTSearcher
 from models.loss import (
     CrossEntropyLoss,
-    LogAction,
-    LogDuration,
     MLPLogNormalDistribution,
 )
-from models.models import Transformer
 from models.sampling import Sampling
 from opts import parse_opt
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from utils.checkpointing import CheckpointManager
-from utils.evaltools.scanmatch import ScanMatch
-from utils.evaluation import comprehensive_evaluation_by_subject, pairs_eval
+from utils.evaluation import comprehensive_evaluation_by_subject
 from utils.logger import Logger
 from utils.recording import RecordManager
 
@@ -82,15 +78,6 @@ def main():
         type="train",
         max_length=args.max_length,
     )
-    train_dataset_rl = CTScanGaze_rl(
-        args.img_dir,
-        args.feat_dir,
-        args.fix_dir,
-        action_map=(args.im_h, args.im_w, 8),
-        origin_size=(args.origin_height, args.origin_width, 512),
-        resize=(args.height, args.width, 512),
-        type="train",
-    )
     validation_dataset = CTScanGaze_evaluation(
         args.img_dir,
         args.feat_dir,
@@ -108,13 +95,6 @@ def main():
         num_workers=4,
         collate_fn=train_dataset.collate_func,
     )
-    train_rl_loader = DataLoader(
-        dataset=train_dataset_rl,
-        batch_size=args.batch,
-        shuffle=True,
-        num_workers=4,
-        collate_fn=train_dataset_rl.collate_func,
-    )
     validation_loader = DataLoader(
         dataset=validation_dataset,
         batch_size=args.test_batch,
@@ -125,30 +105,15 @@ def main():
 
     device = torch.device("cuda")
 
-    transformer = Transformer(
-        num_encoder_layers=args.num_encoder,
-        nhead=args.nhead,
-        subject_feature_dim=args.subject_feature_dim,
+    # CT-Searcher model (as described in paper sections 4.1-4.5)
+    model = CTSearcher(
         d_model=args.hidden_dim,
+        nhead=args.nhead,
         num_decoder_layers=args.num_decoder,
-        encoder_dropout=args.encoder_dropout,
-        decoder_dropout=args.decoder_dropout,
         dim_feedforward=args.hidden_dim,
-        img_hidden_dim=args.img_hidden_dim,
-        lm_dmodel=args.lm_hidden_dim,
-        device=device,
-        args=args,
-    ).to(device)
-
-    model = gazeformer(
-        transformer,
-        spatial_dim=(args.im_h, args.im_w),
-        args=args,
-        subject_num=args.subject_num,
-        subject_feature_dim=args.subject_feature_dim,
-        action_map_num=args.action_map_num,
-        dropout=args.cls_dropout,
-        max_len=args.max_length,
+        dropout=args.decoder_dropout,
+        spatial_dim=(args.im_h, args.im_w, 8),  # 3D spatial dimensions
+        max_length=args.max_length,
         device=device,
     ).to(device)
 
@@ -194,38 +159,19 @@ def main():
     )
 
     # Load checkpoint to resume training from there if specified.
-    # Infer iteration number through file name (it's hacky but very simple), so don't rename
-    # saved checkpoints if you intend to continue training.
+    if args.resume_dir != "":
+        checkpoint_manager.load()
 
-    # Load pre-trained semi-supervised checkpoint
-    training_checkpoint = torch.load(
-        "runs/CTScanGaze_CTSearcher_semi/checkpoints/checkpoint.pth"
-    )
-    for key in training_checkpoint:
-        if key == "optimizer":
-            pass
-        else:
-            model.load_state_dict(training_checkpoint[key])
-
-    del training_checkpoint
-
-    # lr_scheduler = optim.lr_scheduler.LambdaLR \
-    #     (optimizer, lr_lambda=lambda iteration: 1 - iteration / (len(train_loader) * args.epoch), last_epoch=iteration)
-
+    # Learning rate scheduler with warmup
     def lr_lambda(iteration):
         if iteration <= len(train_loader) * args.warmup_epoch:
+            # Warmup phase: linearly increase learning rate
             return iteration / (len(train_loader) * args.warmup_epoch)
-        elif iteration <= len(train_loader) * args.start_rl_epoch:
-            return 1 - (iteration - len(train_loader) * args.warmup_epoch) / (
-                len(train_loader) * (args.start_rl_epoch - args.warmup_epoch)
-            )
         else:
-            return args.rl_lr_initial_decay * (
-                1
-                - (iteration - (len(train_loader) * args.start_rl_epoch))
-                / (len(train_rl_loader) * (args.epoch - args.start_rl_epoch))
+            # Decay phase: linearly decrease learning rate
+            return 1 - (iteration - len(train_loader) * args.warmup_epoch) / (
+                len(train_loader) * (args.epoch - args.warmup_epoch)
             )
-            pass
 
     lr_scheduler = optim.lr_scheduler.LambdaLR(
         optimizer, lr_lambda=lr_lambda, last_epoch=iteration
@@ -235,232 +181,61 @@ def main():
         model = nn.DataParallel(model, args.gpu_ids)
 
     def train(iteration, epoch):
-        # traditional training stage
-        if epoch < args.start_rl_epoch:
-            model.train()
-            with tqdm(total=len(train_loader)) as pbar:
-                for i_batch, batch in enumerate(train_loader):
-                    tmp = [
-                        batch["images"],
-                        batch["subjects"],
-                        batch["durations"],
-                        batch["action_masks"],
-                        batch["duration_masks"],
-                        batch["task_embeddings"],
-                        batch["target_scanpaths"],
-                    ]
-                    tmp = [_ if _ is None else _.cuda() for _ in tmp]
-                    tmp = [_.view(-1, *_.shape[2:]) for _ in tmp]
-                    # tmp = [_[:8] for _ in tmp]
-                    (
-                        images,
-                        subjects,
-                        durations,
-                        action_masks,
-                        duration_masks,
-                        task_embeddings,
-                        target_scanpaths,
-                    ) = tmp
-                    # task = images.new_zeros((images.shape[0], args.lm_hidden_dim))
+        """Supervised training with cross-entropy and duration losses"""
+        model.train()
+        with tqdm(total=len(train_loader)) as pbar:
+            for i_batch, batch in enumerate(train_loader):
+                tmp = [
+                    batch["images"],
+                    batch["durations"],
+                    batch["action_masks"],
+                    batch["duration_masks"],
+                    batch["target_scanpaths"],
+                ]
+                tmp = [_ if _ is None else _.cuda() for _ in tmp]
+                tmp = [_.view(-1, *_.shape[2:]) for _ in tmp]
+                (
+                    images,
+                    durations,
+                    action_masks,
+                    duration_masks,
+                    target_scanpaths,
+                ) = tmp
 
-                    optimizer.zero_grad()
-                    predicts = model(
-                        src=images, subjects=subjects, task=task_embeddings
-                    )
+                optimizer.zero_grad()
+                predicts = model(src=images)
 
-                    loss_actions = CrossEntropyLoss(
-                        predicts["actions"], target_scanpaths, action_masks
-                    )
-                    loss_duration = MLPLogNormalDistribution(
-                        predicts["log_normal_mu"],
-                        predicts["log_normal_sigma2"],
-                        durations,
-                        duration_masks,
-                    )
-                    loss = loss_actions + args.lambda_1 * loss_duration
+                loss_actions = CrossEntropyLoss(
+                    predicts["spatial_logits"], target_scanpaths, action_masks
+                )
+                loss_duration = MLPLogNormalDistribution(
+                    predicts["duration_mu"],
+                    predicts["duration_sigma2"],
+                    durations,
+                    duration_masks,
+                )
+                loss = loss_actions + args.lambda_1 * loss_duration
 
-                    loss.backward()
-                    if args.clip > 0:
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-                    optimizer.step()
+                loss.backward()
+                if args.clip > 0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+                optimizer.step()
 
-                    iteration += 1
-                    lr_scheduler.step()
-                    pbar.update(1)
-                    # Log loss and learning rate to tensorboard.
-                    tensorboard_writer.add_scalar("loss/loss", loss, iteration)
-                    tensorboard_writer.add_scalar(
-                        "loss/loss_actions", loss_actions, iteration
-                    )
-                    tensorboard_writer.add_scalar(
-                        "loss/loss_duration", loss_duration, iteration
-                    )
-                    tensorboard_writer.add_scalar(
-                        "learning_rate", optimizer.param_groups[0]["lr"], iteration
-                    )
-
-        # reinforcement learning stage
-        else:
-            model.eval()
-            # create a ScanMatch object
-            ScanMatchwithDuration = ScanMatch(
-                Xres=args.width,
-                Yres=args.height,
-                Xbin=16,
-                Ybin=12,
-                Offset=(0, 0),
-                TempBin=50,
-                Threshold=3.5,
-            )
-            ScanMatchwithoutDuration = ScanMatch(
-                Xres=args.width,
-                Yres=args.height,
-                Xbin=16,
-                Ybin=12,
-                Offset=(0, 0),
-                Threshold=3.5,
-            )
-            with tqdm(total=len(train_rl_loader)) as pbar:
-                for i_batch, batch in enumerate(train_rl_loader):
-                    tmp = [
-                        batch["images"],
-                        batch["fix_vectors"],
-                        batch["task_embeddings"],
-                        batch["subjects"],
-                    ]
-                    tmp = [_ if not torch.is_tensor(_) else _.cuda() for _ in tmp]
-                    # merge the first two dim
-                    tmp = [
-                        _.view(-1, *_.shape[2:]) if torch.is_tensor(_) else _
-                        for _ in tmp
-                    ]
-                    images, tmp_gt_fix_vectors, task_embeddings, subjects = tmp
-
-                    gt_fix_vectors = []
-                    for _ in tmp_gt_fix_vectors:
-                        gt_fix_vectors.extend(_)
-
-                    N, _, C = images.shape
-
-                    optimizer.zero_grad()
-
-                    metrics_reward_batch = []
-                    neg_log_actions_batch = []
-                    neg_log_durations_batch = []
-
-                    predict = model(src=images, subjects=subjects, task=task_embeddings)
-
-                    log_normal_mu = predict["log_normal_mu"]
-                    log_normal_sigma2 = predict["log_normal_sigma2"]
-                    all_actions_prob = predict["all_actions_prob"]
-
-                    trial = 0
-                    while True:
-                        if trial >= args.rl_sample_number:
-                            break
-
-                        samples = sampling.random_sample(
-                            all_actions_prob, log_normal_mu, log_normal_sigma2
-                        )
-                        prob_sample_actions = samples["selected_actions_probs"]
-                        durations = samples["durations"]
-                        sample_actions = samples["selected_actions"]
-                        random_predict_fix_vectors, action_masks, duration_masks = (
-                            sampling.generate_scanpath(
-                                images, prob_sample_actions, durations, sample_actions
-                            )
-                        )
-                        t = durations.data.clone()
-                        # it needs to be clip since sometime it will be inf
-                        t = torch.clip(t, 0, 100)
-                        metrics_reward = pairs_eval(
-                            gt_fix_vectors,
-                            random_predict_fix_vectors,
-                            ScanMatchwithDuration,
-                            ScanMatchwithoutDuration,
-                        )
-
-                        if np.any(np.isnan(metrics_reward)):
-                            continue
-                        else:
-                            trial += 1
-                            metrics_reward = torch.tensor(
-                                metrics_reward, dtype=torch.float32
-                            ).to(images.get_device())
-                            neg_log_actions = -LogAction(
-                                prob_sample_actions, action_masks
-                            )
-                            neg_log_durations = -LogDuration(
-                                t, log_normal_mu, log_normal_sigma2, duration_masks
-                            )
-                            metrics_reward_batch.append(metrics_reward.unsqueeze(0))
-                            neg_log_actions_batch.append(neg_log_actions.unsqueeze(0))
-                            neg_log_durations_batch.append(
-                                neg_log_durations.unsqueeze(0)
-                            )
-
-                    neg_log_actions_tensor = torch.cat(neg_log_actions_batch, dim=0)
-                    neg_log_durations_tensor = torch.cat(neg_log_durations_batch, dim=0)
-                    # use the mean as reward
-                    metrics_reward_tensor = torch.cat(metrics_reward_batch, dim=0)
-                    metrics_reward_hmean = scipy.stats.hmean(
-                        metrics_reward_tensor[:, :, 5:7].cpu(), axis=-1
-                    )
-                    metrics_reward_hmean_tensor = torch.tensor(metrics_reward_hmean).to(
-                        metrics_reward_tensor.get_device()
-                    )
-                    baseline_reward_hmean_tensor = metrics_reward_hmean_tensor.mean(
-                        0, keepdim=True
-                    )
-
-                    loss_actions = (
-                        neg_log_actions_tensor
-                        * (metrics_reward_hmean_tensor - baseline_reward_hmean_tensor)
-                    ).sum()
-                    loss_duration = (
-                        neg_log_durations_tensor
-                        * (metrics_reward_hmean_tensor - baseline_reward_hmean_tensor)
-                    ).sum()
-                    loss = loss_actions + loss_duration
-
-                    loss.backward()
-                    if args.clip > 0:
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-                    optimizer.step()
-
-                    iteration += 1
-                    lr_scheduler.step()
-                    pbar.update(1)
-                    # Log loss and learning rate to tensorboard.
-                    multimatch_metric_names = [
-                        "vector",
-                        "direction",
-                        "length",
-                        "position",
-                        "duration",
-                        "w/o duration",
-                        "w/ duration",
-                        "SED mean",
-                        "STDE mean",
-                        "SED best",
-                        "STDE best",
-                    ]
-                    multimatch_metrics_reward = metrics_reward_tensor.mean(0).mean(0)
-                    tensorboard_writer.add_scalar("rl_loss", loss, iteration)
-                    tensorboard_writer.add_scalar(
-                        "reward_hmean", metrics_reward_hmean.mean(), iteration
-                    )
-                    tensorboard_writer.add_scalar(
-                        "learning_rate", optimizer.param_groups[0]["lr"], iteration
-                    )
-                    for metric_index in range(len(multimatch_metric_names)):
-                        tensorboard_writer.add_scalar(
-                            "metrics_for_reward/{metric_name}".format(
-                                metric_name=multimatch_metric_names[metric_index]
-                            ),
-                            multimatch_metrics_reward[metric_index],
-                            iteration,
-                        )
+                iteration += 1
+                lr_scheduler.step()
+                pbar.update(1)
+                
+                # Log loss and learning rate to tensorboard
+                tensorboard_writer.add_scalar("loss/loss", loss, iteration)
+                tensorboard_writer.add_scalar(
+                    "loss/loss_actions", loss_actions, iteration
+                )
+                tensorboard_writer.add_scalar(
+                    "loss/loss_duration", loss_duration, iteration
+                )
+                tensorboard_writer.add_scalar(
+                    "learning_rate", optimizer.param_groups[0]["lr"], iteration
+                )
 
         return iteration
 
@@ -474,25 +249,22 @@ def main():
                 tmp = [
                     batch["images"],
                     batch["fix_vectors"],
-                    batch["task_embeddings"],
-                    batch["subjects"],
                 ]
                 tmp = [_ if not torch.is_tensor(_) else _.cuda() for _ in tmp]
                 # merge the first two dim
                 tmp = [
                     _.view(-1, *_.shape[2:]) if torch.is_tensor(_) else _ for _ in tmp
                 ]
-                images, gt_fix_vectors, task_embeddings, subjects = tmp
-                # task = images.new_zeros((images.shape[0], args.lm_hidden_dim))
+                images, gt_fix_vectors = tmp
 
-                N, _, C = images.shape
+                N = images.shape[0]
 
                 with torch.no_grad():
-                    predict = model(src=images, subjects=subjects, task=task_embeddings)
+                    predict = model.inference(src=images)
 
-                log_normal_mu = predict["log_normal_mu"]
-                log_normal_sigma2 = predict["log_normal_sigma2"]
-                all_actions_prob = predict["all_actions_prob"]
+                log_normal_mu = predict["duration_mu"]
+                log_normal_sigma2 = predict["duration_sigma2"]
+                all_actions_prob = predict["spatial_probs"]
 
                 image_prediction_dict = {_: [] for _ in range(len(batch["img_names"]))}
                 all_gt_fix_vectors.extend(gt_fix_vectors)
@@ -570,15 +342,10 @@ def main():
         else:
             cur_metric = -1
 
-        # save
+        # Save checkpoint and update records
         checkpoint_manager.step(float(cur_metric))
         best_metric = checkpoint_manager.get_best_metric()
         record_manager.save(epoch, iteration, best_metric)
-
-        # check  whether to save the final supervised training file
-        if args.supervised_save and epoch == args.start_rl_epoch - 1:
-            cmd = "cp -r " + log_dir + " " + log_dir + "_supervised_save"
-            os.system(cmd)
 
 
 if __name__ == "__main__":

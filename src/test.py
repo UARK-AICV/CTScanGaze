@@ -6,8 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from dataset.dataset import CTScanGaze_evaluation
-from models.gazeformer import gazeformer
-from models.models import Transformer
+from models.ct_searcher import CTSearcher
 from models.sampling import Sampling
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -103,13 +102,7 @@ parser.add_argument(
     "--img_hidden_dim",
     default=768,
     type=int,
-    help="Channel size of initial ResNet feature map",
-)
-parser.add_argument(
-    "--lm_hidden_dim",
-    default=768,
-    type=int,
-    help="Dimensionality of target embeddings from language model",
+    help="Feature dimension from Swin UNETR backbone",
 )
 parser.add_argument(
     "--encoder_dropout", default=0.1, type=float, help="Encoder dropout rate"
@@ -131,16 +124,7 @@ parser.add_argument(
     "--cuda", default=0, type=int, help="CUDA core to load models and data"
 )
 parser.add_argument(
-    "--subject_num", type=int, default=10, help="The number of radiologists in CT-ScanGaze"
-)
-parser.add_argument(
-    "--subject_feature_dim",
-    type=int,
-    default=128,
-    help="The dim of the subject feature",
-)
-parser.add_argument(
-    "--action_map_num", type=int, default=4, help="The dim of action map"
+    "--subject_num", type=int, default=10, help="The number of radiologists in CT-ScanGaze (for dataset)"
 )
 args = parser.parse_args()
 
@@ -185,33 +169,16 @@ def main():
     )
 
     device = torch.device("cuda:0")
-    # device = torch.device("cpu")
 
-    # encoder + decoder
-    transformer = Transformer(
-        num_encoder_layers=args.num_encoder,
-        nhead=args.nhead,
-        subject_feature_dim=args.subject_feature_dim,
+    # CT-Searcher model (as described in paper sections 4.1-4.5)
+    model = CTSearcher(
         d_model=args.hidden_dim,
+        nhead=args.nhead,
         num_decoder_layers=args.num_decoder,
-        encoder_dropout=args.encoder_dropout,
-        decoder_dropout=args.decoder_dropout,
         dim_feedforward=args.hidden_dim,
-        img_hidden_dim=args.img_hidden_dim,
-        lm_dmodel=args.lm_hidden_dim,
-        device=device,
-        args=args,
-    ).cuda()
-
-    model = gazeformer(
-        transformer,
-        spatial_dim=(args.im_h, args.im_w),
-        args=args,
-        subject_num=args.subject_num,
-        subject_feature_dim=args.subject_feature_dim,
-        action_map_num=args.action_map_num,
-        dropout=args.cls_dropout,
-        max_len=args.max_length,
+        dropout=args.decoder_dropout,
+        spatial_dim=(args.im_h, args.im_w, 8),  # 3D spatial dimensions
+        max_length=args.max_length,
         device=device,
     ).cuda()
 
@@ -277,23 +244,20 @@ def main():
             tmp = [
                 batch["images"],
                 batch["fix_vectors"],
-                batch["task_embeddings"],
-                batch["subjects"],
             ]
             tmp = [_ if not torch.is_tensor(_) else _.cuda() for _ in tmp]
             # merge the first two dim
             tmp = [_.view(-1, *_.shape[2:]) if torch.is_tensor(_) else _ for _ in tmp]
-            images, gt_fix_vectors, task_embeddings, subjects = tmp
-            # task = images.new_zeros((images.shape[0], args.lm_hidden_dim))
+            images, gt_fix_vectors = tmp
 
-            N, _, C = images.shape
+            N = images.shape[0]
 
             with torch.no_grad():
-                predict = model(src=images, subjects=subjects, task=task_embeddings)
+                predict = model.inference(src=images)
 
-            log_normal_mu = predict["log_normal_mu"]
-            log_normal_sigma2 = predict["log_normal_sigma2"]
-            all_actions_prob = predict["all_actions_prob"]
+            log_normal_mu = predict["duration_mu"]
+            log_normal_sigma2 = predict["duration_sigma2"]
+            all_actions_prob = predict["spatial_probs"]
 
             image_prediction_dict = {_: [] for _ in range(len(batch["img_names"]))}
             all_gt_fix_vectors.extend(gt_fix_vectors)
