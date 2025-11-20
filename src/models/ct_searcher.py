@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from models.positional_encodings import PositionEmbeddingSine2d
+from models.positional_encodings import PositionEmbeddingSine3d
 
 
 class CTSearcher(nn.Module):
@@ -45,8 +45,8 @@ class CTSearcher(nn.Module):
         # Learnable query embeddings (positional embeddings for fixation sequence)
         self.query_embed = nn.Embedding(max_length, d_model)
         
-        # Positional encoding for spatial features
-        self.pos_embed = PositionEmbeddingSine2d(
+        # Positional encoding for 3D spatial features
+        self.pos_embed = PositionEmbeddingSine3d(
             spatial_dim[:2], hidden_dim=d_model, normalize=True, device=device
         )
         

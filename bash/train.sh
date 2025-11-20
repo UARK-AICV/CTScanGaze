@@ -9,7 +9,8 @@ mkdir -p $output/bash
 rsync -av  src/* $output/src/
 cp $0 $output/bash/run.bash
 
-CUDA_VISIBLE_DEVICES=1,2 python src/train.py \
+# Train with PyTorch Lightning
+CUDA_VISIBLE_DEVICES=1,2 python src/train_lightning.py \
   --log_root runs/${DATASET_NAME}_${MODEL_NAME} \
   --epoch 40 \
   --warmup_epoch 1 \

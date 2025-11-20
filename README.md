@@ -84,37 +84,60 @@ Additionally, we provide zip files containing all CT scans that match the identi
 ### Quick Start
 There is another step to prepare the extracted CT feature first before running the scripts below. I will update this later (⚠️TODO). But for anyone wants to go ahead, we use SwinUNETR. 
 
+#### Local Training
 ```bash
-# Train the gaze predictor using the synthetic data
-bash bash/train_semi.sh
+# Single or multi-GPU
+bash bash/train.sh
 
-# Train the gaze predictor on CTScanGaze.
-bash bash/train_no_semi.sh
-```
-
-### Custom Training
-
-```bash
-python src/train.py \
-    --img_dir /path/to/ct/images \
-    --feat_dir /path/to/swin_features \
-    --fix_dir /path/to/gaze/data \
-    --log_root runs/experiment_name \
+# Or directly
+python src/train_lightning.py \
+    --log_root runs/experiment \
     --epoch 40 \
-    --batch 2
+    --batch 2 \
+    --img_dir /path/to/data \
+    --feat_dir /path/to/features
 ```
+
+#### Slurm Cluster (Multi-node)
+```bash
+sbatch bash/train_slurm.sh
+```
+
+Lightning auto-detects Slurm and configures multi-node DDP. Adjust `--nodes` and `--gres=gpu:X` in the script as needed.
+
+**Features:**
+- 🚀 Auto multi-GPU/multi-node
+- ⚡ Mixed precision (16-bit)
+- 💾 Smart checkpointing
+- 📊 TensorBoard logging
+- 🎯 Slurm auto-detection
+
+### Resume Training
+
+```bash
+python src/train_lightning.py \
+    --resume_dir runs/experiment_name \
+    --batch 2 \
+    --epoch 40
+```
+
+The trainer will automatically load the last checkpoint from the specified directory.
 
 ## 🔬 Evaluation
 
 ### Test a Trained Model
 
+Evaluation is performed automatically during training (every epoch). To evaluate a saved checkpoint:
+
 ```bash
-python src/test.py \
-    --evaluation_dir runs/CTScanGaze_CTSearcher \
+python src/train_lightning.py \
+    --resume_dir runs/CTScanGaze_CTSearcher \
     --img_dir /path/to/test/ct/images \
     --feat_dir /path/to/test/features \
     --fix_dir /path/to/test/gaze/data
 ```
+
+The Lightning trainer handles validation automatically with comprehensive metrics.
 
 ### Evaluation Metrics
 
