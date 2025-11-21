@@ -4,7 +4,7 @@ import argparse
 
 
 def parse_opt():
-    parser = argparse.ArgumentParser(description="Scanpath prediction for images")
+    parser = argparse.ArgumentParser(description="3D scanpath prediction for CT volumes using CT-Searcher")
     parser.add_argument(
         "--mode",
         type=str,
@@ -15,19 +15,19 @@ def parse_opt():
         "--img_dir",
         type=str,
         default="/srv/data/COCOSearch18/TP/images",
-        help="Directory to the image data (stimuli)",
+        help="Directory to the CT volume data",
     )
     parser.add_argument(
         "--feat_dir",
         type=str,
         default="/srv/data/COCOSearch18/TP/image_features",
-        help="Directory to the image feature data (stimuli)",
+        help="Directory to the CT volume feature data",
     )
     parser.add_argument(
         "--fix_dir",
         type=str,
         default="/srv/data/COCOSearch18/TP/processed",
-        help="Directory to the raw fixation file",
+        help="Directory to the 3D gaze fixation file",
     )
     parser.add_argument("--width", type=int, default=512, help="Width of input data")
     parser.add_argument("--height", type=int, default=512, help="Height of input data")
@@ -57,32 +57,14 @@ def parse_opt():
         "--warmup_epoch",
         type=int,
         default=1,
-        help="Epoch when finishing warn up strategy",
-    )
-    parser.add_argument(
-        "--start_rl_epoch",
-        type=int,
-        default=5,
-        help="Epoch when starting reinforcement learning",
-    )
-    parser.add_argument(
-        "--rl_sample_number",
-        type=int,
-        default=5,
-        help="Number of samples used in policy gradient update",
+        help="Number of warmup epochs with linear learning rate increase",
     )
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     # parser.add_argument('--head_lr', default=1e-6, type=float, help="Learning rate for SlowOpt")
     # parser.add_argument('--tail_lr', default=1e-4, type=float, help="Learning rate for FastOpt")
     # parser.add_argument('--belly_lr', default=2e-6, type=float, help="Learning rate for MidOpt")
     parser.add_argument(
-        "--lr", default=1e-4, type=float, help="Learning rate for MidOpt"
-    )
-    parser.add_argument(
-        "--rl_lr_initial_decay",
-        type=float,
-        default=0.1,
-        help="Initial decay of learning rate of rl",
+        "--lr", default=1e-4, type=float, help="Learning rate"
     )
     parser.add_argument("--weight_decay", type=float, default=5e-5, help="Weight decay")
     # parser.add_argument("--gpu_ids", type=list, default=[0, 1, 2, 3], help="Used gpu ids")
@@ -141,13 +123,7 @@ def parse_opt():
         "--img_hidden_dim",
         default=768,
         type=int,
-        help="Channel size of initial ResNet feature map",
-    )
-    parser.add_argument(
-        "--lm_hidden_dim",
-        default=768,
-        type=int,
-        help="Dimensionality of target embeddings from language model",
+        help="Feature dimension from Swin UNETR backbone",
     )
     parser.add_argument(
         "--encoder_dropout", default=0.1, type=float, help="Encoder dropout rate"
@@ -169,16 +145,7 @@ def parse_opt():
         "--cuda", default=0, type=int, help="CUDA core to load models and data"
     )
     parser.add_argument(
-        "--subject_num", type=int, default=10, help="The number of the subject in OSIE"
-    )
-    parser.add_argument(
-        "--subject_feature_dim",
-        type=int,
-        default=128,
-        help="The dim of the subject feature",
-    )
-    parser.add_argument(
-        "--action_map_num", type=int, default=4, help="The dim of action map"
+        "--subject_num", type=int, default=10, help="The number of radiologists in CT-ScanGaze (for dataset)"
     )
     parser.add_argument(
         "--no_eval_epoch",
@@ -193,11 +160,13 @@ def parse_opt():
         default=1.0,
         help="Hyper-parameter for duration loss term",
     )
+
     parser.add_argument(
-        "--supervised_save",
-        type=bool,
-        default=True,
-        help="Copy the files before start the policy gradient update",
+        "--eval_metrics",
+        type=str,
+        default="all",
+        choices=["all", "multimatch", "scanmatch", "sed"],
+        help="Which metrics to calculate during evaluation (default: all). Options: all, multimatch, scanmatch, sed",
     )
 
     # config

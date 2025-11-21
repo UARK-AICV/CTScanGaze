@@ -25,9 +25,9 @@ class PositionEmbeddingSine1d(nn.Module):
         # return x + self.pos[:x.size(0), :].to(self.device)
         return x + self.pos[:x.size(0), :]
         
-class PositionEmbeddingSine2d(nn.Module):
+class PositionEmbeddingSine3d(nn.Module):
     def __init__(self, spatial_dim, hidden_dim=768, temperature=10000, normalize=False, scale=None, flatten = True, device = "cuda:0"):
-        super(PositionEmbeddingSine2d, self).__init__()
+        super(PositionEmbeddingSine3d, self).__init__()
         self.num_pos_feats = hidden_dim // 3
         normalize = normalize
         self.h, self.w, self.c = 8, 8, 8

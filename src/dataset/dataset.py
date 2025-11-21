@@ -12,9 +12,10 @@ from torch.utils.data import Dataset
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-class COCOSearch(Dataset):
+
+class CTScanGaze(Dataset):
     """
-    get OSIE data
+    CT-ScanGaze dataset for 3D volumetric scanpath prediction training
     """
 
     def __init__(
@@ -49,11 +50,6 @@ class COCOSearch(Dataset):
         self.downscale_y = resize[0] / action_map[0]
         self.downscale_z = resize[2] / action_map[2]
 
-        # target embeddings
-        self.embedding_dict = np.load(
-            open(join(stimuli_dir, "embeddings.npy"), mode="rb"), allow_pickle=True
-        ).item()
-
         self.fixations_file = join(
             self.stimuli_dir, "data_simplified_split_matched_pt.json"
         )
@@ -64,9 +60,9 @@ class COCOSearch(Dataset):
 
         self.imgid_to_sub = {}
         for index, fixation in enumerate(self.fixations):
-            self.imgid_to_sub.setdefault(
-                "{}/{}".format(fixation["task"], fixation["name"]), []
-            ).append(index)
+            self.imgid_to_sub.setdefault("{}.pt".format(fixation["name"]), []).append(
+                index
+            )
         self.imgid = list(self.imgid_to_sub.keys())
 
     def __len__(self):
@@ -79,14 +75,12 @@ class COCOSearch(Dataset):
 
     def __getitem__(self, idx):
         img_name = self.imgid[idx]
-        img_path = join(self.feature_dir, img_name.replace("jpg", "pth"))
+        img_path = join(self.feature_dir, img_name.replace("jpg", "pt"))
         image_ftrs = torch.load(img_path).unsqueeze(0)
         image_ftrs = F.interpolate(image_ftrs, size=(8, 8, 8))
         image_ftrs = einops.rearrange(image_ftrs, "b d h w c -> b (h w c) d")
         images = []
         subjects = []
-        tasks = []
-        task_embeddings = []
         target_scanpaths = []
         durations = []
         action_masks = []
@@ -114,9 +108,7 @@ class COCOSearch(Dataset):
             duration = np.zeros(self.max_length, dtype=np.float32)
             action_mask = np.zeros(self.max_length, dtype=np.float32)
             duration_mask = np.zeros(self.max_length, dtype=np.float32)
-            task = fixation["task"]
-            if task == "freeview":
-                task = "keyboard"
+
             # if use cvpr paper, we do not need to normalize
             pos_x = np.array(fixation["X"]).astype(np.float32)
             pos_y = np.array(fixation["Y"]).astype(np.float32)
@@ -172,21 +164,14 @@ class COCOSearch(Dataset):
             action_masks.append(action_mask)
             duration_masks.append(duration_mask)
             subjects.append(int(fixation["subject"]) - 1)
-            tasks.append(task)
-            task_embedding = self.embedding_dict[task]
-            task_embeddings.append(task_embedding)
             target_scanpaths.append(target_scanpath)
 
         images = torch.cat(images)
         subjects = np.array(subjects)
-        task_embeddings = np.array(task_embeddings)
         target_scanpaths = np.array(target_scanpaths)
         durations = np.array(durations)
         action_masks = np.array(action_masks)
         duration_masks = np.array(duration_masks)
-
-        # self.show_image(image/255)
-        # self.show_image(image_resized/255)
 
         return {
             "image": images,
@@ -195,8 +180,6 @@ class COCOSearch(Dataset):
             "duration": durations,
             "action_mask": action_masks,
             "duration_mask": duration_masks,
-            "task": tasks,
-            "task_embedding": task_embeddings,
             "target_scanpath": target_scanpaths,
         }
 
@@ -207,8 +190,6 @@ class COCOSearch(Dataset):
         duration_batch = []
         action_mask_batch = []
         duration_mask_batch = []
-        task_batch = []
-        task_embedding_batch = []
         target_scanpath_batch = []
 
         for sample in batch:
@@ -219,8 +200,6 @@ class COCOSearch(Dataset):
                 tmp_duration,
                 tmp_action_mask,
                 tmp_duration_mask,
-                tmp_task,
-                tmp_task_embedding,
                 tmp_target_scanpath,
             ) = (
                 sample["image"],
@@ -229,8 +208,6 @@ class COCOSearch(Dataset):
                 sample["duration"],
                 sample["action_mask"],
                 sample["duration_mask"],
-                sample["task"],
-                sample["task_embedding"],
                 sample["target_scanpath"],
             )
             img_batch.append(tmp_img)
@@ -239,8 +216,6 @@ class COCOSearch(Dataset):
             duration_batch.append(tmp_duration)
             action_mask_batch.append(tmp_action_mask)
             duration_mask_batch.append(tmp_duration_mask)
-            task_batch.append(tmp_task)
-            task_embedding_batch.append(tmp_task_embedding)
             target_scanpath_batch.append(tmp_target_scanpath)
 
         data = dict()
@@ -250,8 +225,6 @@ class COCOSearch(Dataset):
         data["durations"] = np.concatenate(duration_batch)
         data["action_masks"] = np.concatenate(action_mask_batch)
         data["duration_masks"] = np.concatenate(duration_mask_batch)
-        data["tasks"] = task_batch
-        data["task_embeddings"] = np.concatenate(task_embedding_batch)
         data["target_scanpaths"] = np.concatenate(target_scanpath_batch)
 
         data = {
@@ -264,198 +237,9 @@ class COCOSearch(Dataset):
         return data
 
 
-class COCOSearch_rl(Dataset):
+class CTScanGaze_evaluation(Dataset):
     """
-    get OSIE data for evaluation
-    """
-
-    def __init__(
-        self,
-        stimuli_dir,
-        feature_dir,
-        fixations_dir,
-        action_map=(30, 40),
-        origin_size=(600, 800),
-        resize=(240, 320),
-        type="validation",
-        transform=None,
-    ):
-        self.stimuli_dir = stimuli_dir
-        self.feature_dir = feature_dir
-        self.action_map = action_map
-        self.origin_size = origin_size
-        self.resize = resize
-        self.type = type
-        self.transform = transform
-
-        self.downscale_x = origin_size[1] / action_map[1]
-        self.downscale_y = origin_size[0] / action_map[0]
-        self.downscale_z = origin_size[2] / action_map[2]
-
-        self.resizescale_x = origin_size[1] / resize[1]
-        self.resizescale_y = origin_size[0] / resize[0]
-        self.resizescale_z = origin_size[2] / resize[2]
-
-        # target embeddings
-        self.embedding_dict = np.load(
-            open(join(stimuli_dir, "embeddings.npy"), mode="rb"), allow_pickle=True
-        ).item()
-
-        self.fixations_file = join(
-            self.stimuli_dir, "data_simplified_split_matched_pt.json"
-        )
-        with open(self.fixations_file) as json_file:
-            fixations = json.load(json_file)
-        fixations = [_ for _ in fixations if _["split"] == type]
-        self.fixations = fixations
-
-        self.imgid_to_sub = {}
-        for index, fixation in enumerate(self.fixations):
-            self.imgid_to_sub.setdefault(
-                "{}/{}".format(fixation["task"], fixation["name"]), []
-            ).append(index)
-        self.imgid = list(self.imgid_to_sub.keys())
-
-    def __len__(self):
-        # return len(self.imgid) * 15
-        # return len(self.fixations)
-        return len(self.imgid)
-
-    def show_image(self, img):
-        plt.figure()
-        plt.imshow(img)
-        plt.show()
-
-    def __getitem__(self, idx):
-        img_name = self.imgid[idx]
-        img_path = join(self.feature_dir, img_name.replace("jpg", "pth"))
-        image_ftrs = torch.load(img_path).unsqueeze(0)
-        image_ftrs = F.interpolate(image_ftrs, size=(8, 8, 8))
-        image_ftrs = einops.rearrange(image_ftrs, "b d h w c -> b (h w c) d")
-
-        # image = Image.open(img_path).convert('RGB')
-        # if self.transform is not None:
-        #     image = self.transform(image)
-
-        images = []
-        fix_vectors = []
-        subjects = []
-        firstfixs = []
-        tasks = []
-        task_embeddings = []
-        for ids in self.imgid_to_sub[img_name]:
-            fixation = self.fixations[ids]
-            task = fixation["task"]
-            if task == "freeview":
-                task = "keyboard"
-
-            # normalize
-            # x_start = np.array(fixation["X"]).astype(np.float32) / self.resizescale_x
-            # y_start = np.array(fixation["Y"]).astype(np.float32) / self.resizescale_y
-            # duration = np.array(fixation["T"]).astype(np.float32) / 1000.0
-
-            # if use cvpr paper, we do not need to normalize
-            x_start = np.array(fixation["X"]).astype(np.float32)
-            y_start = np.array(fixation["Y"]).astype(np.float32)
-            z_start = np.array(fixation["Z"]).astype(np.float32)
-            duration = np.array(fixation["T"]).astype(np.float32)
-
-            length = fixation["length"]
-
-            # in the middle of the image
-            firstfix = np.array([self.resize[0] / 2, self.resize[1] / 2, 0], np.int64)
-
-            fix_vector = []
-            for order in range(length):
-                fix_vector.append(
-                    (x_start[order], y_start[order], z_start[order], duration[order])
-                )
-            fix_vector = np.array(
-                fix_vector,
-                dtype={
-                    "names": ("start_x", "start_y", "start_z", "duration"),
-                    "formats": ("f8", "f8", "f8", "f8"),
-                },
-            )
-
-            task_embedding = self.embedding_dict[task]
-
-            fix_vectors.append(fix_vector)
-            subjects.append(int(fixation["subject"]) - 1)
-            firstfixs.append(firstfix)
-            images.append(image_ftrs)
-            tasks.append(task)
-            task_embeddings.append(task_embedding)
-
-        images = torch.cat(images)
-        return {
-            "image": images,
-            "fix_vectors": fix_vectors,
-            "firstfix": firstfixs,
-            "img_name": img_name,
-            "subject": subjects,
-            "task": tasks,
-            "task_embedding": task_embeddings,
-        }
-
-    def collate_func(self, batch):
-        img_batch = []
-        fix_vectors_batch = []
-        firstfix_batch = []
-        subject_batch = []
-        img_name_batch = []
-        task_batch = []
-        task_embedding_batch = []
-
-        for sample in batch:
-            (
-                tmp_img,
-                tmp_fix_vectors,
-                tmp_firstfix,
-                tmp_subject,
-                tmp_img_name,
-                tmp_task,
-                tmp_task_embedding,
-            ) = (
-                sample["image"],
-                sample["fix_vectors"],
-                sample["firstfix"],
-                sample["subject"],
-                sample["img_name"],
-                sample["task"],
-                sample["task_embedding"],
-            )
-            img_batch.append(tmp_img)
-            fix_vectors_batch.append(tmp_fix_vectors)
-            firstfix_batch.append(tmp_firstfix)
-            subject_batch.append(tmp_subject)
-            img_name_batch.append(tmp_img_name)
-            task_batch.append(tmp_task)
-            task_embedding_batch.append(tmp_task_embedding)
-
-        data = {}
-        data["images"] = torch.cat(img_batch)
-        data["fix_vectors"] = fix_vectors_batch
-        data["firstfixs"] = np.concatenate(firstfix_batch)
-        data["subjects"] = np.concatenate(subject_batch)
-        data["img_names"] = img_name_batch
-        data["tasks"] = task_batch
-        data["task_embeddings"] = np.concatenate(task_embedding_batch)
-
-        data = {
-            k: torch.from_numpy(v) if type(v) is np.ndarray else v
-            for k, v in data.items()
-        }  # Turn all ndarray to torch tensor
-        data = {
-            k: v.unsqueeze(0) if type(v) is torch.Tensor else v for k, v in data.items()
-        }
-
-        return data
-
-
-class COCOSearch_evaluation(Dataset):
-    """
-    get OSIE data for evaluation
+    CT-ScanGaze dataset for evaluation and testing
     """
 
     def __init__(
@@ -485,11 +269,6 @@ class COCOSearch_evaluation(Dataset):
         self.downscale_y = resize[0] / action_map[0]
         self.downscale_z = resize[2] / action_map[2]
 
-        # target embeddings
-        self.embedding_dict = np.load(
-            open(join(stimuli_dir, "embeddings.npy"), mode="rb"), allow_pickle=True
-        ).item()
-
         self.fixations_file = join(
             self.stimuli_dir, "data_simplified_split_matched_pt.json"
         )
@@ -500,16 +279,14 @@ class COCOSearch_evaluation(Dataset):
 
         self.imgid_to_sub = {}
         for index, fixation in enumerate(self.fixations):
-            self.imgid_to_sub.setdefault(
-                "{}/{}".format(fixation["task"], fixation["name"]), []
-            ).append(index)
+            self.imgid_to_sub.setdefault("{}.pt".format(fixation["name"]), []).append(
+                index
+            )
         self.imgid = list(self.imgid_to_sub.keys())
 
         objects = set([_.split("/")[0] for _ in self.imgid])
 
     def __len__(self):
-        # return len(self.imgid) * 15
-        # return len(self.fixations)
         return len(self.imgid)
 
     def show_image(self, img):
@@ -523,26 +300,13 @@ class COCOSearch_evaluation(Dataset):
         image_ftrs = torch.load(img_path).unsqueeze(0)
         image_ftrs = F.interpolate(image_ftrs, size=(8, 8, 8))
         image_ftrs = einops.rearrange(image_ftrs, "b d h w c -> b (h w c) d")
-        # image = Image.open(img_path).convert('RGB')
-        # if self.transform is not None:
-        #     image = self.transform(image)
 
         images = []
         fix_vectors = []
         subjects = []
         firstfixs = []
-        tasks = []
-        task_embeddings = []
         for ids in self.imgid_to_sub[img_name]:
             fixation = self.fixations[ids]
-            task = fixation["task"]
-            if task == "freeview":
-                task = "keyboard"
-
-            # normalize
-            # x_start = np.array(fixation["X"]).astype(np.float32) / self.resizescale_x
-            # y_start = np.array(fixation["Y"]).astype(np.float32) / self.resizescale_y
-            # duration = np.array(fixation["T"]).astype(np.float32) / 1000.0
 
             # if use cvpr paper, we do not need to normalize
             x_start = np.array(fixation["X"]).astype(np.float32)
@@ -568,14 +332,10 @@ class COCOSearch_evaluation(Dataset):
                 },
             )
 
-            task_embedding = self.embedding_dict[task]
-
             fix_vectors.append(fix_vector)
             subjects.append(int(fixation["subject"]) - 1)
             firstfixs.append(firstfix)
             images.append(image_ftrs)
-            tasks.append(task)
-            task_embeddings.append(task_embedding)
 
         images = torch.cat(images)
         return {
@@ -584,8 +344,6 @@ class COCOSearch_evaluation(Dataset):
             "firstfix": firstfixs,
             "img_name": img_name,
             "subject": subjects,
-            "task": tasks,
-            "task_embedding": task_embeddings,
         }
 
     def collate_func(self, batch):
@@ -594,8 +352,6 @@ class COCOSearch_evaluation(Dataset):
         firstfix_batch = []
         subject_batch = []
         img_name_batch = []
-        task_batch = []
-        task_embedding_batch = []
 
         for sample in batch:
             (
@@ -604,24 +360,18 @@ class COCOSearch_evaluation(Dataset):
                 tmp_firstfix,
                 tmp_subject,
                 tmp_img_name,
-                tmp_task,
-                tmp_task_embedding,
             ) = (
                 sample["image"],
                 sample["fix_vectors"],
                 sample["firstfix"],
                 sample["subject"],
                 sample["img_name"],
-                sample["task"],
-                sample["task_embedding"],
             )
             img_batch.append(tmp_img)
             fix_vectors_batch.append(tmp_fix_vectors)
             firstfix_batch.append(tmp_firstfix)
             subject_batch.append(tmp_subject)
             img_name_batch.append(tmp_img_name)
-            task_batch.append(tmp_task)
-            task_embedding_batch.append(tmp_task_embedding)
 
         data = {}
         data["images"] = torch.stack(img_batch)
@@ -629,8 +379,6 @@ class COCOSearch_evaluation(Dataset):
         data["firstfixs"] = np.stack(firstfix_batch)
         data["subjects"] = np.array(subject_batch)
         data["img_names"] = img_name_batch
-        data["tasks"] = task_batch
-        data["task_embeddings"] = np.array(task_embedding_batch)
 
         data = {
             k: torch.from_numpy(v) if type(v) is np.ndarray else v

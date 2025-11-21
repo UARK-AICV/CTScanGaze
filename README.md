@@ -23,9 +23,9 @@ This repository provides the first publicly available dataset of expert radiolog
   <em><strong>Figure 2:</strong> CTSearcher</em>
 </div>
 
-**🎉 This work has been accepted as a highlight paper at ICCV 2025! 🎉**
+**🎉 This work has been accepted as a highlight paper at ICCV 2025!**
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Installation](#installation)
 - [Dataset](#dataset)
@@ -34,7 +34,7 @@ This repository provides the first publicly available dataset of expert radiolog
 - [Citation](#citation)
 - [Contact](#contact)
 
-## 🛠️ Installation
+## Installation
 
 ### Quick Setup
 
@@ -53,7 +53,7 @@ uv pip install -r requirements.txt
 ```
 
 
-## 📊 CT-ScanGaze Dataset
+## Dataset
 
 **CT-ScanGaze** is the first publicly available eye gaze dataset focused on CT scan analysis. The dataset is available on [Hugging Face](https://huggingface.co/datasets/phamtrongthang/CT-ScanGaze).
 
@@ -63,14 +63,14 @@ Each data sample contains the following fields:
 ```python
 {
     "name": str,           # CT scan identifier
-    "subject": int,        # Radiologist ID
+    "subject": str,        # Radiologist ID
     "task": str,           # Task description
     "X": list,             # X coordinates of fixations
-    "Y": list,             # Y coordinates of fixations  
+    "Y": list,             # Y coordinates of fixations
     "Z": list,             # Z coordinates (slice numbers)
     "T": list,             # Fixation durations in seconds
-    "K": int,              # Fixation captured time
     "length": int,         # Scanpath length
+    "split": str,          # Data split ("train" or "test")
     "report": str,         # Report for this CT
 }
 ```
@@ -79,42 +79,100 @@ Note that other fields in the JSON are dummy, so you do not need to care about t
 Additionally, we provide zip files containing all CT scans that match the identifiers, along with corresponding radiological reports for each CT scan.
 
 
-## 🏃‍♂️ Training
+## Feature Extraction
+
+Before training, you need to extract Swin UNETR features from your CT volumes. We provide a two-step process:
+
+### Step 1: Extract Features
+
+Extract features from CT volumes using a pre-trained Swin UNETR model:
+
+```bash
+# Place your CT volumes in one_sample/cts/*.nii.gz
+uv run feature_extraction/swin_unet_extract_feature.py
+```
+
+This script will:
+- Download the pre-trained Swin UNETR model (MONAI BTCV weights)
+- Extract features using sliding window (96×96×96 patches)
+- Save patch-based features to `one_sample/features/*.pt`
+
+### Step 2: Merge Features
+
+Merge overlapping patch features into complete volumes:
+
+```bash
+python feature_extraction/merge_features.py \
+    --features_dir one_sample/features \
+    --output_dir one_sample/features_merged
+```
+
+This creates final feature volumes:
+- `{name}.pt`: Decoder features (768 channels, H/32×W/32×D/32)
+- `{name}_hidden_states_out_4.pt`: Encoder features (768 channels, H/32×W/32×D/32)
+
+For more details, see [feature_extraction/README.md](feature_extraction/README.md).
+
+## Training
 
 ### Quick Start
-There is another step to prepare the extracted CT feature first before running the scripts below. I will update this later (⚠️TODO). But for anyone wants to go ahead, we use SwinUNETR. 
 
+After extracting features, you can train the CT-Searcher model:
+
+#### Local Training
 ```bash
-# Train the gaze predictor using the synthetic data
-bash bash/train_semi.sh
+# Single or multi-GPU
+bash bash/train.sh
 
-# Train the gaze predictor on CTScanGaze.
-bash bash/train_no_semi.sh
-```
-
-### Custom Training
-
-```bash
-python src/train.py \
-    --img_dir /path/to/ct/images \
-    --feat_dir /path/to/swin_features \
-    --fix_dir /path/to/gaze/data \
-    --log_root runs/experiment_name \
+# Or directly
+python src/train_lightning.py \
+    --log_root runs/experiment \
     --epoch 40 \
-    --batch 2
+    --batch 2 \
+    --img_dir /path/to/data \
+    --feat_dir /path/to/features_merged
 ```
 
-## 🔬 Evaluation
+#### Slurm Cluster (Multi-node)
+```bash
+sbatch bash/train_slurm.sh
+```
+
+Lightning auto-detects Slurm and configures multi-node DDP. Adjust `--nodes` and `--gres=gpu:X` in the script as needed.
+
+**Features:**
+- Auto multi-GPU/multi-node training
+- Mixed precision (16-bit)
+- Smart checkpointing
+- TensorBoard logging
+- Slurm auto-detection
+
+### Resume Training
+
+```bash
+python src/train_lightning.py \
+    --resume_dir runs/experiment_name \
+    --batch 2 \
+    --epoch 40
+```
+
+The trainer will automatically load the last checkpoint from the specified directory.
+
+## Evaluation
 
 ### Test a Trained Model
 
+Evaluation is performed automatically during training (every epoch). To evaluate a saved checkpoint:
+
 ```bash
-python src/test.py \
-    --resume_dir runs/COCO_Search_baseline \
+python src/train_lightning.py \
+    --resume_dir runs/CTScanGaze_CTSearcher \
     --img_dir /path/to/test/ct/images \
     --feat_dir /path/to/test/features \
     --fix_dir /path/to/test/gaze/data
 ```
+
+The Lightning trainer handles validation automatically with comprehensive metrics.
 
 ### Evaluation Metrics
 
@@ -130,17 +188,17 @@ We use comprehensive 3D-adapted metrics for scanpath evaluation:
 - **Normalized Scanpath Saliency (NSS)**: Normalized saliency at fixation locations
 - **Kullback-Leibler Divergence (KLDiv)**: Distribution similarity measure
 
-## ⚠️ TODO
+## TODO
 
-The current code base is working as long as the path and extracted features are prepared. But a lot of refactoring work is needed. 
+The current code base is working as long as the path and extracted features are prepared. But a lot of refactoring work is needed.
 
-- [ ] Extracted feature of CTs
+- [x] Extracted feature of CTs (see [Feature Extraction](#feature-extraction))
 - [ ] Clean and refactor codebase
 - [ ] Synthetic dataset
 - [ ] Improve code comments and structure
 
 
-## 📜 Citation
+## Citation
 
 If you find our work useful, please cite our paper:
 
@@ -153,17 +211,17 @@ If you find our work useful, please cite our paper:
 }
 ```
 
-## � Acknowledgments
+## Acknowledgments
 
 This material is based upon work supported by the National Science Foundation (NSF) under Award No OIA-1946391, NSF 2223793 EFRI BRAID, National Institutes of Health (NIH) 1R01CA277739-01.
 
-## �📄 License
+## License
 
 This project is licensed under the Creative Commons Attribution Non Commercial Share Alike 4.0 International License. See the [LICENSE](LICENSE) file for details.
 
 
 
-## � Contact
+## Contact
 
 **Primary Contact**: Trong Thang Pham (tp030@uark.edu)
 
@@ -176,6 +234,6 @@ For questions, feedback, or collaboration opportunities, feel free to reach out!
 
 <div align="center">
 
-**⭐ Star this repository if you find it useful! ⭐**
+**Star this repository if you find it useful!**
 
 </div>
