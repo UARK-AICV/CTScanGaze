@@ -23,9 +23,9 @@ This repository provides the first publicly available dataset of expert radiolog
   <em><strong>Figure 2:</strong> CTSearcher</em>
 </div>
 
-**🎉 This work has been accepted as a highlight paper at ICCV 2025! 🎉**
+**🎉 This work has been accepted as a highlight paper at ICCV 2025!**
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Installation](#installation)
 - [Dataset](#dataset)
@@ -34,7 +34,7 @@ This repository provides the first publicly available dataset of expert radiolog
 - [Citation](#citation)
 - [Contact](#contact)
 
-## 🛠️ Installation
+## Installation
 
 ### Quick Setup
 
@@ -53,7 +53,7 @@ uv pip install -r requirements.txt
 ```
 
 
-## 📊 CT-ScanGaze Dataset
+## Dataset
 
 **CT-ScanGaze** is the first publicly available eye gaze dataset focused on CT scan analysis. The dataset is available on [Hugging Face](https://huggingface.co/datasets/phamtrongthang/CT-ScanGaze).
 
@@ -63,14 +63,14 @@ Each data sample contains the following fields:
 ```python
 {
     "name": str,           # CT scan identifier
-    "subject": int,        # Radiologist ID
+    "subject": str,        # Radiologist ID
     "task": str,           # Task description
     "X": list,             # X coordinates of fixations
-    "Y": list,             # Y coordinates of fixations  
+    "Y": list,             # Y coordinates of fixations
     "Z": list,             # Z coordinates (slice numbers)
     "T": list,             # Fixation durations in seconds
-    "K": int,              # Fixation captured time
     "length": int,         # Scanpath length
+    "split": str,          # Data split ("train" or "test")
     "report": str,         # Report for this CT
 }
 ```
@@ -79,7 +79,7 @@ Note that other fields in the JSON are dummy, so you do not need to care about t
 Additionally, we provide zip files containing all CT scans that match the identifiers, along with corresponding radiological reports for each CT scan.
 
 
-## 🔧 Feature Extraction
+## Feature Extraction
 
 Before training, you need to extract Swin UNETR features from your CT volumes. We provide a two-step process:
 
@@ -113,7 +113,7 @@ This creates final feature volumes:
 
 For more details, see [feature_extraction/README.md](feature_extraction/README.md).
 
-## 🏃‍♂️ Training
+## Training
 
 ### Quick Start
 
@@ -141,11 +141,11 @@ sbatch bash/train_slurm.sh
 Lightning auto-detects Slurm and configures multi-node DDP. Adjust `--nodes` and `--gres=gpu:X` in the script as needed.
 
 **Features:**
-- 🚀 Auto multi-GPU/multi-node
-- ⚡ Mixed precision (16-bit)
-- 💾 Smart checkpointing
-- 📊 TensorBoard logging
-- 🎯 Slurm auto-detection
+- Auto multi-GPU/multi-node training
+- Mixed precision (16-bit)
+- Smart checkpointing
+- TensorBoard logging
+- Slurm auto-detection
 
 ### Resume Training
 
@@ -158,7 +158,7 @@ python src/train_lightning.py \
 
 The trainer will automatically load the last checkpoint from the specified directory.
 
-## 🔬 Evaluation
+## Evaluation
 
 ### Test a Trained Model
 
@@ -188,17 +188,17 @@ We use comprehensive 3D-adapted metrics for scanpath evaluation:
 - **Normalized Scanpath Saliency (NSS)**: Normalized saliency at fixation locations
 - **Kullback-Leibler Divergence (KLDiv)**: Distribution similarity measure
 
-## ⚠️ TODO
+## TODO
 
 The current code base is working as long as the path and extracted features are prepared. But a lot of refactoring work is needed.
 
-- [x] Extracted feature of CTs (see [Feature Extraction](#-feature-extraction))
+- [x] Extracted feature of CTs (see [Feature Extraction](#feature-extraction))
 - [ ] Clean and refactor codebase
 - [ ] Synthetic dataset
 - [ ] Improve code comments and structure
 
 
-## 📜 Citation
+## Citation
 
 If you find our work useful, please cite our paper:
 
@@ -211,17 +211,17 @@ If you find our work useful, please cite our paper:
 }
 ```
 
-## � Acknowledgments
+## Acknowledgments
 
 This material is based upon work supported by the National Science Foundation (NSF) under Award No OIA-1946391, NSF 2223793 EFRI BRAID, National Institutes of Health (NIH) 1R01CA277739-01.
 
-## �📄 License
+## License
 
 This project is licensed under the Creative Commons Attribution Non Commercial Share Alike 4.0 International License. See the [LICENSE](LICENSE) file for details.
 
 
 
-## � Contact
+## Contact
 
 **Primary Contact**: Trong Thang Pham (tp030@uark.edu)
 
@@ -234,6 +234,6 @@ For questions, feedback, or collaboration opportunities, feel free to reach out!
 
 <div align="center">
 
-**⭐ Star this repository if you find it useful! ⭐**
+**Star this repository if you find it useful!**
 
 </div>

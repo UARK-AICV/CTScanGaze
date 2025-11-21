@@ -161,6 +161,14 @@ def parse_opt():
         help="Hyper-parameter for duration loss term",
     )
 
+    parser.add_argument(
+        "--eval_metrics",
+        type=str,
+        default="all",
+        choices=["all", "multimatch", "scanmatch", "sed"],
+        help="Which metrics to calculate during evaluation (default: all). Options: all, multimatch, scanmatch, sed",
+    )
+
     # config
     parser.add_argument(
         "--cfg",

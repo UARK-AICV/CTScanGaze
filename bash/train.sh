@@ -13,6 +13,7 @@ cp $0 $output/bash/run.bash
 CUDA_VISIBLE_DEVICES=0 python src/train_lightning.py \
   --log_root runs/${DATASET_NAME}_${MODEL_NAME} \
   --epoch 5 \
+  --eval_metrics sed \
   --warmup_epoch 1 \
   --batch 1 \
   --img_dir /home/tp030/CTScanGaze/one_sample \

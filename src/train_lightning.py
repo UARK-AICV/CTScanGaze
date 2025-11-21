@@ -190,6 +190,10 @@ class CTSearcherLightningModule(pl.LightningModule):
             cur_metric = scipy.stats.hmean(list(cur_metrics["ScanMatch"].values()))
             self.log("val/metric_hmean", cur_metric, on_epoch=True, prog_bar=True)
 
+        # Compute and log main metric (harmonic mean of SED)
+        if "VAME" in cur_metrics:
+            cur_metric = scipy.stats.hmean(list(cur_metrics["VAME"].values()))
+            self.log("val/metric_hmean", cur_metric, on_epoch=True, prog_bar=True)
         # Clear outputs for next epoch
         self.validation_step_outputs.clear()
 
@@ -354,7 +358,7 @@ def main():
             dirpath=os.path.join(log_dir, "checkpoints"),
             filename="checkpoint-{epoch:02d}-{val_metric_hmean:.4f}",
             monitor="val/metric_hmean",
-            mode="max",
+            mode="min",
             save_top_k=3,
             save_last=True,
             verbose=True,
