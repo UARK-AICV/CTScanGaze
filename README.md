@@ -79,10 +79,45 @@ Note that other fields in the JSON are dummy, so you do not need to care about t
 Additionally, we provide zip files containing all CT scans that match the identifiers, along with corresponding radiological reports for each CT scan.
 
 
+## 🔧 Feature Extraction
+
+Before training, you need to extract Swin UNETR features from your CT volumes. We provide a two-step process:
+
+### Step 1: Extract Features
+
+Extract features from CT volumes using a pre-trained Swin UNETR model:
+
+```bash
+# Place your CT volumes in one_sample/cts/*.nii.gz
+uv run feature_extraction/swin_unet_extract_feature.py
+```
+
+This script will:
+- Download the pre-trained Swin UNETR model (MONAI BTCV weights)
+- Extract features using sliding window (96×96×96 patches)
+- Save patch-based features to `one_sample/features/*.pt`
+
+### Step 2: Merge Features
+
+Merge overlapping patch features into complete volumes:
+
+```bash
+python feature_extraction/merge_features.py \
+    --features_dir one_sample/features \
+    --output_dir one_sample/features_merged
+```
+
+This creates final feature volumes:
+- `{name}.pt`: Decoder features (768 channels, H/32×W/32×D/32)
+- `{name}_hidden_states_out_4.pt`: Encoder features (768 channels, H/32×W/32×D/32)
+
+For more details, see [feature_extraction/README.md](feature_extraction/README.md).
+
 ## 🏃‍♂️ Training
 
 ### Quick Start
-There is another step to prepare the extracted CT feature first before running the scripts below. I will update this later (⚠️TODO). But for anyone wants to go ahead, we use SwinUNETR. 
+
+After extracting features, you can train the CT-Searcher model:
 
 #### Local Training
 ```bash
@@ -95,7 +130,7 @@ python src/train_lightning.py \
     --epoch 40 \
     --batch 2 \
     --img_dir /path/to/data \
-    --feat_dir /path/to/features
+    --feat_dir /path/to/features_merged
 ```
 
 #### Slurm Cluster (Multi-node)
@@ -155,9 +190,9 @@ We use comprehensive 3D-adapted metrics for scanpath evaluation:
 
 ## ⚠️ TODO
 
-The current code base is working as long as the path and extracted features are prepared. But a lot of refactoring work is needed. 
+The current code base is working as long as the path and extracted features are prepared. But a lot of refactoring work is needed.
 
-- [ ] Extracted feature of CTs
+- [x] Extracted feature of CTs (see [Feature Extraction](#-feature-extraction))
 - [ ] Clean and refactor codebase
 - [ ] Synthetic dataset
 - [ ] Improve code comments and structure
