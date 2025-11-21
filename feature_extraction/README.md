@@ -1,0 +1,1 @@
+uv run feature_extraction/swin_unet_extract_feature.py
