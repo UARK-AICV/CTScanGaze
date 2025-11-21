@@ -12,6 +12,7 @@ from torch.utils.data import Dataset
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+
 class CTScanGaze(Dataset):
     """
     CT-ScanGaze dataset for 3D volumetric scanpath prediction training
@@ -59,9 +60,9 @@ class CTScanGaze(Dataset):
 
         self.imgid_to_sub = {}
         for index, fixation in enumerate(self.fixations):
-            self.imgid_to_sub.setdefault(
-                "{}/{}".format(fixation["task"], fixation["name"]), []
-            ).append(index)
+            self.imgid_to_sub.setdefault("{}.pt".format(fixation["name"]), []).append(
+                index
+            )
         self.imgid = list(self.imgid_to_sub.keys())
 
     def __len__(self):
@@ -74,7 +75,7 @@ class CTScanGaze(Dataset):
 
     def __getitem__(self, idx):
         img_name = self.imgid[idx]
-        img_path = join(self.feature_dir, img_name.replace("jpg", "pth"))
+        img_path = join(self.feature_dir, img_name.replace("jpg", "pt"))
         image_ftrs = torch.load(img_path).unsqueeze(0)
         image_ftrs = F.interpolate(image_ftrs, size=(8, 8, 8))
         image_ftrs = einops.rearrange(image_ftrs, "b d h w c -> b (h w c) d")
@@ -107,7 +108,7 @@ class CTScanGaze(Dataset):
             duration = np.zeros(self.max_length, dtype=np.float32)
             action_mask = np.zeros(self.max_length, dtype=np.float32)
             duration_mask = np.zeros(self.max_length, dtype=np.float32)
-            
+
             # if use cvpr paper, we do not need to normalize
             pos_x = np.array(fixation["X"]).astype(np.float32)
             pos_y = np.array(fixation["Y"]).astype(np.float32)
@@ -278,9 +279,9 @@ class CTScanGaze_evaluation(Dataset):
 
         self.imgid_to_sub = {}
         for index, fixation in enumerate(self.fixations):
-            self.imgid_to_sub.setdefault(
-                "{}/{}".format(fixation["task"], fixation["name"]), []
-            ).append(index)
+            self.imgid_to_sub.setdefault("{}.pt".format(fixation["name"]), []).append(
+                index
+            )
         self.imgid = list(self.imgid_to_sub.keys())
 
         objects = set([_.split("/")[0] for _ in self.imgid])

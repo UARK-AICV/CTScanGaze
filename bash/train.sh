@@ -10,10 +10,11 @@ rsync -av  src/* $output/src/
 cp $0 $output/bash/run.bash
 
 # Train with PyTorch Lightning
-CUDA_VISIBLE_DEVICES=1,2 python src/train_lightning.py \
+CUDA_VISIBLE_DEVICES=0 python src/train_lightning.py \
   --log_root runs/${DATASET_NAME}_${MODEL_NAME} \
-  --epoch 40 \
+  --epoch 5 \
   --warmup_epoch 1 \
-  --batch 2 \
-  --img_dir /path/to/CTScanGaze/data \
-  --feat_dir /path/to/CTScanGaze/features/swin_unetr_feature 
+  --batch 1 \
+  --img_dir /home/tp030/CTScanGaze/one_sample \
+  --feat_dir /home/tp030/CTScanGaze/one_sample/features_merged \
+  --fix_dir /home/tp030/CTScanGaze/one_sample
