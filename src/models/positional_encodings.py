@@ -2,29 +2,6 @@ import math
 import torch
 from torch import nn
 
-class PositionEmbeddingSine1d(nn.Module):
-    def __init__(self, max_len, hidden_dim=768, temperature=1000, normalize=False, scale=None, device = "cuda:0"):
-        super(PositionEmbeddingSine1d, self).__init__()
-        normalize = normalize
-        if scale is not None and normalize is False:
-            raise ValueError("normalize should be True if scale is passed")
-        if scale is None:
-            scale = 2 * math.pi
-        self.device = device
-        position = torch.arange(max_len).unsqueeze(1)
-        if normalize:
-            eps = 1e-6
-            position = position / (max_len - 1 + eps) * scale
-        div_term = torch.exp(torch.arange(0, hidden_dim, 2) * (-math.log(temperature) / hidden_dim))
-        self.pos = torch.zeros(max_len, hidden_dim)
-        self.pos[:, 0::2] = torch.sin(position * div_term)
-        self.pos[:, 1::2] = torch.cos(position * div_term)
-        self.pos = self.pos.unsqueeze(1).to('cpu')
-
-    def forward(self, x):
-        # return x + self.pos[:x.size(0), :].to(self.device)
-        return x + self.pos[:x.size(0), :]
-        
 class PositionEmbeddingSine3d(nn.Module):
     def __init__(self, spatial_dim, hidden_dim=768, temperature=10000, normalize=False, scale=None, flatten = True, device = "cuda:0"):
         super(PositionEmbeddingSine3d, self).__init__()
@@ -71,27 +48,3 @@ class PositionEmbeddingSine3d(nn.Module):
     def forward(self, x):
         # return x.to(self.device) + self.pos.to(self.device)
         return x.to(self.device) + self.pos.to(self.device)[: x.shape[0]]
-
-class FixationEmbeddingLearned2d(nn.Module):
-    """
-    Absolute pos embedding, learned.
-    """
-    def __init__(self, spatial_dim, hidden_dim = 768, device = "cuda:0"):
-        super(FixationEmbeddingLearned2d, self).__init__()
-        self.h, self.w = spatial_dim
-        self.row_embed = nn.Embedding(self.h, hidden_dim//2)
-        self.col_embed = nn.Embedding(self.w, hidden_dim//2)
-        self.device = device
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        nn.init.uniform_(self.row_embed.weight)
-        nn.init.uniform_(self.col_embed.weight)
-
-    def forward(self, token):
-        x_emb = self.col_embed(token[:, :, 1])
-        y_emb = self.row_embed(token[:, :, 0])
-        pos = torch.cat([y_emb, x_emb], dim = -1)
-        return pos
-
-

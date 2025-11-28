@@ -194,20 +194,6 @@ def parse_opt():
 
     # step 1: read cfg_fn
     args = parser.parse_args()
-    if args.cfg is not None or args.set_cfgs is not None:
-        from utils.config import CfgNode
-
-        if args.cfg is not None:
-            cn = CfgNode(CfgNode.load_yaml_with_base(args.cfg))
-        else:
-            cn = CfgNode()
-        if args.set_cfgs is not None:
-            cn.merge_from_list(args.set_cfgs)
-        for k, v in cn.items():
-            if not hasattr(args, k):
-                print("Warning: key %s not in args" % k)
-            setattr(args, k, v)
-        args = parser.parse_args(namespace=args)
     import random
 
     args.seed = random.randint(0, 10000)
