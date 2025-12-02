@@ -94,7 +94,7 @@ class CTSearcher(nn.Module):
         """
         Args:
             src: Pre-extracted features from Swin UNETR [batch_size, seq_len, feature_dim]
-            tgt_mask: Causal mask for autoregressive decoding
+            tgt_mask: Causal mask for parallel decoding
             
         Returns:
             Dictionary containing:
@@ -107,13 +107,14 @@ class CTSearcher(nn.Module):
         # Project input features
         src = self.input_proj(src)  # [batch, seq_len, d_model]
         
-        # Add positional encoding to memory
+        # Permute and add positional encoding to memory
         src = src.permute(1, 0, 2)  # [seq_len, batch, d_model]
+        src = self.pos_embed(src)   # Add 3D positional encoding
         
         # Prepare decoder queries
         tgt = self.query_embed.weight.unsqueeze(1).repeat(1, batch_size, 1)  # [max_length, batch, d_model]
         
-        # Generate causal mask for autoregressive decoding
+        # Generate causal mask for parallel decoding
         if tgt_mask is None:
             tgt_mask = self._generate_square_subsequent_mask(self.max_length).to(src.device)
         
@@ -140,7 +141,7 @@ class CTSearcher(nn.Module):
         }
     
     def _generate_square_subsequent_mask(self, sz: int) -> Tensor:
-        """Generate causal mask for autoregressive decoding"""
+        """Generate causal mask for parallel decoding"""
         mask = torch.triu(torch.ones(sz, sz), diagonal=1)
         mask = mask.masked_fill(mask == 1, float('-inf'))
         return mask
