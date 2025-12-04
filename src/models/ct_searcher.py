@@ -24,10 +24,10 @@ class CTSearcher(nn.Module):
     2. Transformer Decoder (4.2): 
        - 3D PE applied again on E(Z)
        - Learnable queries Q attend to E(Z) to produce R
-    3. Spatial Prediction (4.3): 
-       - Ŷ = softmax(FC(R) ⊗ E(Z)^T)
-    4. Duration Prediction (4.4): 
-       - Predicts log-normal distribution parameters (μ, σ)
+    3. Spatial Prediction (4.3):
+       - \hat{Y} = softmax(FC(R) @ E(Z)^T)
+    4. Duration Prediction (4.4):
+       - Predicts log-normal distribution parameters (\mu, \sigma)
     """
     
     def __init__(
@@ -102,7 +102,7 @@ class CTSearcher(nn.Module):
         
         # Spatial Prediction Head (Section 4.3)
         # FC layer to project decoder output R before multiplying with E(Z)
-        # Ŷ = softmax(FC(R) ⊗ E(Z)^T)
+        # \hat{Y} = softmax(FC(R) @ E(Z)^T)
         self.spatial_fc = nn.Linear(d_model, d_model)
         
         # Duration Prediction Head (Section 4.4)
@@ -194,16 +194,16 @@ class CTSearcher(nn.Module):
         R = decoder_output.permute(1, 0, 2)
         
         # === Spatial Prediction (Section 4.3) ===
-        # Ŷ = softmax(FC(R) ⊗ E(Z)^T)
-        
+        # \hat{Y} = softmax(FC(R) @ E(Z)^T)
+
         # Project decoder output: FC(R)
         R_proj = self.spatial_fc(R)  # [batch, max_length, d_model]
-        
+
         # Get encoder output for matrix multiplication
         # encoder_output is [seq_len+1, batch, d_model], permute to [batch, seq_len+1, d_model]
         E_Z = encoder_output.permute(1, 0, 2)  # [batch, seq_len+1, d_model]
-        
-        # Matrix multiplication: FC(R) ⊗ E(Z)^T
+
+        # Matrix multiplication: FC(R) @ E(Z)^T
         # R_proj: [batch, max_length, d_model]
         # E_Z^T: [batch, d_model, seq_len+1]
         spatial_logits = torch.bmm(R_proj, E_Z.transpose(1, 2))  # [batch, max_length, seq_len+1]
@@ -263,7 +263,7 @@ class CTSearcher(nn.Module):
             outputs['predicted_positions'] = torch.argmax(spatial_probs, dim=-1)
         
         # Sample duration from log-normal distribution
-        # t = μ + ε * exp(0.5 * λ), where ε ~ N(0, 1)
+        # t = \mu + \epsilon * exp(0.5 * \lambda), where \epsilon \sim \mathcal{N}(0, 1)
         mu = outputs['duration_mu']
         sigma = torch.sqrt(outputs['duration_sigma2'])
         epsilon = torch.randn_like(mu)

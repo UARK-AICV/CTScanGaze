@@ -27,13 +27,13 @@ def cart2sph(x, y, z):
     Check https://en.wikipedia.org/wiki/Spherical_coordinate_system#Cartesian_coordinates
 
     """
-    xy = np.sqrt(x**2 + y**2)  # sqrt(x² + y²)
+    xy = np.sqrt(x**2 + y**2)  # sqrt(x^2 + y^2)
 
     x_2 = x**2
     y_2 = y**2
     z_2 = z**2
 
-    r = np.sqrt(x_2 + y_2 + z_2)  # r = sqrt(x² + y² + z²)
+    r = np.sqrt(x_2 + y_2 + z_2)  # r = sqrt(x^2 + y^2 + z^2)
 
     theta = np.arctan2(y, x)
 
@@ -541,7 +541,7 @@ def cal_angulardifference(data1, data2, path, M_assignment):
         # extract the angle
         spT = [theta1[i.item()], theta2[j.item()]]
         for t in range(0, len(spT)):
-            # get results in range -pi, pi
+            # get results in range [-\pi, \pi]
             if spT[t] < 0:
                 spT[t] = math.pi + (math.pi + spT[t])
         spT = abs(spT[0] - spT[1])
@@ -550,7 +550,7 @@ def cal_angulardifference(data1, data2, path, M_assignment):
         # extract the angle
         spP = [phi1[i.item()], phi2[j.item()]]
         for t in range(0, len(spP)):
-            # get results in range -pi, pi
+            # get results in range [-\pi, \pi]
             if spP[t] < 0:
                 spP[t] = math.pi + (math.pi + spP[t])
         spP = abs(spP[0] - spP[1])
@@ -777,7 +777,7 @@ def normaliseresults(unnormalised, screensize):
     VectorSimilarity = 1 - unnormalised[0] / (
         2 * math.sqrt(screensize[0] ** 2 + screensize[1] ** 2 + screensize[2] ** 2)
     )
-    # normalize against pi
+    # normalize against \pi
     DirectionSimilarity = 1 - unnormalised[1] / math.pi
     # normalize against screen diagonal
     LengthSimilarity = 1 - unnormalised[2] / math.sqrt(

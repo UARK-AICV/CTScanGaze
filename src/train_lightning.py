@@ -376,7 +376,7 @@ def main():
         # Multi-node training
         strategy = "ddp"
         print(
-            f"🚀 Multi-node training: {num_nodes} nodes × {num_gpus} GPUs = {num_nodes * num_gpus} total GPUs"
+            f"🚀 Multi-node training: {num_nodes} nodes x {num_gpus} GPUs = {num_nodes * num_gpus} total GPUs"
         )
     elif num_gpus > 1:
         # Single-node multi-GPU

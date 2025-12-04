@@ -14,6 +14,12 @@ def CrossEntropyLoss(input, gt, mask):
     return loss
 
 def MLPLogNormalDistribution(log_normal_mu, log_normal_sigma2, gt, mask):
+    """
+    Negative log-likelihood loss for log-normal distribution.
+
+    Log-normal PDF: p(t) = \frac{1}{t\sigma\sqrt{2\pi}} \exp\left(-\frac{(\ln t - \mu)^2}{2\sigma^2}\right)
+    Log PDF: \log p(t) = -\log t - \log\sigma - \frac{1}{2}\log(2\pi) - \frac{(\ln t - \mu)^2}{2\sigma^2}
+    """
     # batch, time_scale = log_normal_mu.size()
     logpdf = torch.log(1 / (gt + epsilon) * 1 / (torch.sqrt(2 * math.pi * log_normal_sigma2))) \
              + (- (torch.log(gt + epsilon) - log_normal_mu) ** 2 / (2 * log_normal_sigma2))
